@@ -1,0 +1,51 @@
+services:
+  - type: redis
+    name: repo-health-redis
+    plan: free
+    ipAllowList: []
+
+  - type: web
+    name: repo-health-api
+    env: docker
+    plan: starter
+    rootDir: backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: repo-health-redis
+          property: connectionString
+      - key: FRONTEND_ORIGIN
+        value: "*"
+      - key: WORK_DIR
+        value: /tmp/repo-health-work
+
+  - type: worker
+    name: repo-health-worker
+    env: docker
+    plan: starter
+    rootDir: backend
+    dockerCommand: python -m app.worker
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: repo-health-redis
+          property: connectionString
+      - key: WORK_DIR
+        value: /tmp/repo-health-work
+
+  - type: web
+    name: repo-health-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://repo-health-api.onrender.com
